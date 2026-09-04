@@ -1,19 +1,12 @@
-# etikket
+<div align="center">
+  <img src="assets/images/eTikket.png" alt="eTikket Logo" width="220" />
 
-A new Flutter project.
+  <br/><br/>
 
-## Getting Started
+  # eTikket Gate Scanner
+  **Fast, secure, and effortless event check-in for venues and live events.**
+</div>
 
-This project is a starting point for a Flutter application.
+<br/>
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-"# etikket-app" 
-"# etikket-app" 
+eTikket Gate Scanner is the official entrance companion app built for event staff and gate managers across Kenya. Designed to keep entry lines moving fast, the app lets gate staff instantly scan attendee digital tickets and physical QR passes using their phone camera, verify ticket validity in real time, and check in guests with a single tap. With built-in duplicate detection, instant attendee lookup, and live attendance tracking, eTikket Gate Scanner ensures that only authorized ticket holders enter your event while eliminating ticket fraud and long queues at the door.
