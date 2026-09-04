@@ -69,7 +69,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider<SettingsController>(
-          create: (_) => SettingsController(apiClient: apiClient),
+          create: (_) => SettingsController(),
         ),
         ChangeNotifierProvider<AuthController>(
           create: (_) => AuthController(

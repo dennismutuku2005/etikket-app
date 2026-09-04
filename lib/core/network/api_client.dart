@@ -2,29 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_endpoints.dart';
 import '../errors/exceptions.dart';
 
 class ApiClient {
   final http.Client _httpClient;
-  static const String _baseUrlPrefKey = 'etikket_api_base_url';
 
   ApiClient({http.Client? httpClient}) : _httpClient = httpClient ?? http.Client();
 
-  Future<String> getBaseUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_baseUrlPrefKey);
-    if (saved != null && saved.trim().isNotEmpty) {
-      return saved.trim().replaceAll(RegExp(r'/+$'), '');
-    }
-    return ApiEndpoints.defaultBaseUrl;
-  }
-
-  Future<void> setBaseUrl(String newUrl) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_baseUrlPrefKey, newUrl.trim().replaceAll(RegExp(r'/+$'), ''));
-  }
+  String get baseUrl => ApiEndpoints.baseUrl.replaceAll(RegExp(r'/+$'), '');
 
   Map<String, String> _buildHeaders({String? token, Map<String, String>? extraHeaders}) {
     final headers = <String, String>{
@@ -45,7 +31,6 @@ class ApiClient {
     String? token,
     Map<String, String>? queryParams,
   }) async {
-    final baseUrl = await getBaseUrl();
     Uri uri = Uri.parse('$baseUrl$path');
     if (queryParams != null && queryParams.isNotEmpty) {
       uri = uri.replace(queryParameters: queryParams);
@@ -58,7 +43,7 @@ class ApiClient {
       return _processResponse(response);
     } on SocketException {
       throw NetworkException(
-        message: 'Cannot connect to server at $baseUrl. Please verify the server is running and check your connection.',
+        message: 'Cannot connect to server. Please check your internet connection.',
       );
     } on TimeoutException {
       throw NetworkException(message: 'Connection timed out. Please try again.');
@@ -77,7 +62,6 @@ class ApiClient {
     dynamic body,
     String? token,
   }) async {
-    final baseUrl = await getBaseUrl();
     final uri = Uri.parse('$baseUrl$path');
 
     try {
@@ -91,7 +75,7 @@ class ApiClient {
       return _processResponse(response);
     } on SocketException {
       throw NetworkException(
-        message: 'Cannot connect to server at $baseUrl. Please verify the server is running and check your connection.',
+        message: 'Cannot connect to server. Please check your internet connection.',
       );
     } on TimeoutException {
       throw NetworkException(message: 'Connection timed out. Please try again.');

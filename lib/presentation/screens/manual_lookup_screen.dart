@@ -18,8 +18,6 @@ class ManualLookupScreen extends StatefulWidget {
 class _ManualLookupScreenState extends State<ManualLookupScreen> {
   final _codeController = TextEditingController();
 
-  final List<String> _demoCodes = ['TKT-1042', 'TKT-1043', 'TKT-1044'];
-
   @override
   void dispose() {
     _codeController.dispose();
@@ -97,7 +95,6 @@ class _ManualLookupScreenState extends State<ManualLookupScreen> {
                     const SizedBox(height: 16),
                     AppTextField(
                       controller: _codeController,
-                      hintText: 'e.g. TKT-1042',
                       textInputAction: TextInputAction.search,
                       onSubmitted: (_) => _handleLookup(),
                       suffixIcon: _codeController.text.isNotEmpty
@@ -110,42 +107,6 @@ class _ManualLookupScreenState extends State<ManualLookupScreen> {
                               },
                             )
                           : null,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Demo code chips
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        Text('Try sample:', style: AppTextStyles.captionBold),
-                        ..._demoCodes.map(
-                          (c) => InkWell(
-                            onTap: () {
-                              setState(() {
-                                _codeController.text = c;
-                              });
-                              _handleLookup();
-                            },
-                            borderRadius: BorderRadius.circular(999),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceAlt,
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Text(
-                                c,
-                                style: AppTextStyles.code.copyWith(
-                                  fontSize: 12,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 16),
 

@@ -209,71 +209,25 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      text: 'Manual Lookup',
-                      icon: const Icon(Icons.keyboard_rounded, size: 18, color: Colors.white),
-                      height: 48,
-                      onPressed: () async {
-                        final code = await Navigator.of(context).push<String>(
-                          MaterialPageRoute(builder: (_) => const ManualLookupScreen()),
-                        );
-                        if (!mounted) return;
-                        if (code != null && code.isNotEmpty) {
-                          final ticket = await scannerController.lookupCode(
-                            code,
-                            token: authController.currentUser?.token,
-                          );
-                          if (ticket != null && mounted) {
-                            _showTicketSheet();
-                          }
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Tooltip(
-                    message: 'Demo Ticket',
-                    child: Material(
-                      color: AppColors.surfaceAlt,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        side: const BorderSide(color: AppColors.border),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () async {
-                          final ticket = await scannerController.lookupCode(
-                            'TKT-1042',
-                            token: authController.currentUser?.token,
-                          );
-                          if (ticket != null && mounted) {
-                            _showTicketSheet();
-                          }
-                        },
-                        child: Container(
-                          height: 48,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.science_outlined, size: 18, color: AppColors.textPrimary),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Demo',
-                                style: AppTextStyles.button.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              child: AppButton(
+                text: 'Manual Code Lookup',
+                icon: const Icon(Icons.keyboard_rounded, size: 18, color: Colors.white),
+                height: 48,
+                onPressed: () async {
+                  final code = await Navigator.of(context).push<String>(
+                    MaterialPageRoute(builder: (_) => const ManualLookupScreen()),
+                  );
+                  if (!mounted) return;
+                  if (code != null && code.isNotEmpty) {
+                    final ticket = await scannerController.lookupCode(
+                      code,
+                      token: authController.currentUser?.token,
+                    );
+                    if (ticket != null && mounted) {
+                      _showTicketSheet();
+                    }
+                  }
+                },
               ),
             ),
           ),

@@ -1,8 +1,9 @@
 class ApiEndpoints {
-  // Default base URL - Android Emulator points to 10.0.2.2 for host localhost,
-  // or can be overridden dynamically in Settings screen.
-  static const String defaultBaseUrl = 'http://10.0.2.2:5000';
-  static const String defaultLocalIpUrl = 'http://192.168.1.100:5000';
+  // Configured via environment variable or defaults to backend port 4010
+  static const String baseUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: 'http://10.0.2.2:4010',
+  );
 
   static const String login = '/api/auth/login';
   static const String tickets = '/api/tickets';

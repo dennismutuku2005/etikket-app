@@ -7,7 +7,6 @@ import '../controllers/auth_controller.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_text_field.dart';
 import 'gate_scanner_screen.dart';
-import 'settings_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,26 +63,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Server Settings',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
@@ -123,21 +106,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryTint10,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            'GATE STAFF ACCESS',
-                            style: AppTextStyles.captionBold.copyWith(
-                              color: AppColors.primary,
-                              fontSize: 10.5,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
                         Text(
                           'Gate staff login',
                           style: AppTextStyles.h1.copyWith(fontSize: 22),
@@ -183,7 +151,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Input fields
                         AppTextField(
                           label: 'Email or phone number',
-                          hintText: 'gate@etikket.co.ke or 0711000000',
                           controller: _identifierController,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -192,7 +159,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         AppTextField(
                           label: 'Password',
-                          hintText: 'Enter your password',
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           textInputAction: TextInputAction.done,
