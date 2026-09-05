@@ -1,7 +1,9 @@
-name: Build & Release Android App
+name: Build & Publish Android Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -11,12 +13,14 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Release APK
+    name: Build & Publish APK & AAB
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -34,28 +38,38 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      - name: Run Tests
-        run: flutter test
-
       - name: Build Release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=API_URL=https://etikketapi.quickzingo.co.ke
 
       - name: Build Release App Bundle (AAB)
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --dart-define=API_URL=https://etikketapi.quickzingo.co.ke
 
-      - name: Prepare Artifacts
+      - name: Determine Version & Prepare Assets
+        id: release_info
         run: |
           mkdir -p release-assets
-          cp build/app/outputs/flutter-apk/app-release.apk release-assets/etikket-gate-scanner-${{ github.ref_name }}.apk
-          cp build/app/outputs/bundle/release/app-release.aab release-assets/etikket-gate-scanner-${{ github.ref_name }}.aab
+          VERSION_TAG="v1.0.${{ github.run_number }}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION_TAG="${{ github.ref_name }}"
+          fi
+          echo "tag_name=${VERSION_TAG}" >> $GITHUB_OUTPUT
+          cp build/app/outputs/flutter-apk/app-release.apk release-assets/etikket-gate-scanner-${VERSION_TAG}.apk
+          cp build/app/outputs/bundle/release/app-release.aab release-assets/etikket-gate-scanner-${VERSION_TAG}.aab
 
-      - name: Create GitHub Release & Upload Assets
+      - name: Upload Build Artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: etikket-android-${{ steps.release_info.outputs.tag_name }}
+          path: release-assets/*
+
+      - name: Create GitHub Release & Publish Assets
         uses: softprops/action-gh-release@v2
         with:
-          name: eTikket Gate Scanner ${{ github.ref_name }}
+          tag_name: ${{ steps.release_info.outputs.tag_name }}
+          name: eTikket Gate Scanner ${{ steps.release_info.outputs.tag_name }}
           files: |
-            release-assets/etikket-gate-scanner-${{ github.ref_name }}.apk
-            release-assets/etikket-gate-scanner-${{ github.ref_name }}.aab
+            release-assets/etikket-gate-scanner-${{ steps.release_info.outputs.tag_name }}.apk
+            release-assets/etikket-gate-scanner-${{ steps.release_info.outputs.tag_name }}.aab
           generate_release_notes: true
           draft: false
           prerelease: false

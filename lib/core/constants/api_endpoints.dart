@@ -1,8 +1,8 @@
 class ApiEndpoints {
-  // Configured via environment variable or defaults to backend port 4010
+  // Configured via environment variable or defaults to production backend URL
   static const String baseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://10.0.2.2:4010',
+    defaultValue: 'https://etikketapi.quickzingo.co.ke',
   );
 
   static const String login = '/api/auth/login';
