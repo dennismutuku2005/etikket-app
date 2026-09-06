@@ -85,10 +85,38 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          if (scannerController.hasCameraPermission && scannerController.mobileScannerController != null)
+          if (scannerController.hasCameraPermission)
             MobileScanner(
-              key: ObjectKey(scannerController.mobileScannerController),
-              controller: scannerController.mobileScannerController!,
+              controller: scannerController.mobileScannerController,
+              errorBuilder: (context, error, child) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Camera Error',
+                          style: AppTextStyles.h2.copyWith(color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          error.errorDetails?.message ?? 'Please check camera permissions or restart the app.',
+                          style: AppTextStyles.body.copyWith(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        AppButton(
+                          text: 'Retry Camera',
+                          onPressed: () => scannerController.startScanning(),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
               onDetect: (capture) async {
                 final ticket = await scannerController.onBarcodeDetected(
                   capture,

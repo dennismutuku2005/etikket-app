@@ -12,8 +12,8 @@ class ScannerController extends ChangeNotifier {
   final LookupTicketUseCase lookupTicketUseCase;
   final VerifyTicketUseCase verifyTicketUseCase;
 
-  MobileScannerController? _mobileScannerController;
-  MobileScannerController? get mobileScannerController => _mobileScannerController;
+  late final MobileScannerController _mobileScannerController;
+  MobileScannerController get mobileScannerController => _mobileScannerController;
 
   bool _isTorchOn = false;
   bool _isFrontCamera = false;
@@ -34,21 +34,11 @@ class ScannerController extends ChangeNotifier {
   ScannerController({
     required this.lookupTicketUseCase,
     required this.verifyTicketUseCase,
-  });
-
-  Future<void> _setupFreshScannerController() async {
-    try {
-      if (_mobileScannerController != null) {
-        await _mobileScannerController!.stop();
-        await _mobileScannerController!.dispose();
-        _mobileScannerController = null;
-      }
-    } catch (_) {}
-
+  }) {
     _mobileScannerController = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
-      facing: _isFrontCamera ? CameraFacing.front : CameraFacing.back,
-      torchEnabled: _isTorchOn,
+      facing: CameraFacing.back,
+      torchEnabled: false,
       returnImage: false,
     );
   }
@@ -93,7 +83,9 @@ class ScannerController extends ChangeNotifier {
   void setScanningActive(bool active) {
     _isScanningActive = active;
     if (!active) {
-      _mobileScannerController?.stop();
+      try {
+        _mobileScannerController.stop();
+      } catch (_) {}
     } else if (!_isHomeScreen) {
       resumeScanning();
     }
@@ -106,9 +98,7 @@ class ScannerController extends ChangeNotifier {
     _errorMessage = null;
     _statusMessage = 'Ready to scan tickets';
     try {
-      _mobileScannerController?.stop();
-      _mobileScannerController?.dispose();
-      _mobileScannerController = null;
+      _mobileScannerController.stop();
     } catch (_) {}
     notifyListeners();
   }
@@ -122,9 +112,8 @@ class ScannerController extends ChangeNotifier {
       await checkAndRequestCameraPermission();
     }
     if (_hasCameraPermission) {
-      await _setupFreshScannerController();
       try {
-        await _mobileScannerController?.start();
+        await _mobileScannerController.start();
       } catch (_) {}
     }
     notifyListeners();
@@ -139,9 +128,8 @@ class ScannerController extends ChangeNotifier {
     _isScanningActive = true;
     _statusMessage = 'Point camera at ticket QR code to scan.';
     if (_hasCameraPermission) {
-      await _setupFreshScannerController();
       try {
-        await _mobileScannerController?.start();
+        await _mobileScannerController.start();
       } catch (_) {}
     }
     notifyListeners();
@@ -149,46 +137,35 @@ class ScannerController extends ChangeNotifier {
 
   Future<void> pauseScanning() async {
     _isScanningActive = false;
-    try {
-      await _mobileScannerController?.stop();
-    } catch (_) {}
     notifyListeners();
   }
 
   Future<void> resumeScanning() async {
     if (!_isHomeScreen) {
       _isScanningActive = true;
-      if (_mobileScannerController == null) {
-        await _setupFreshScannerController();
-      }
+      _lastScannedCode = null;
+      _lastScanTime = null;
       try {
-        await _mobileScannerController?.start();
+        await _mobileScannerController.start();
       } catch (_) {}
       notifyListeners();
     }
   }
 
   Future<void> toggleTorch() async {
-    if (_mobileScannerController != null) {
-      try {
-        await _mobileScannerController!.toggleTorch();
-        _isTorchOn = !_isTorchOn;
-        notifyListeners();
-      } catch (_) {}
-    }
+    try {
+      await _mobileScannerController.toggleTorch();
+      _isTorchOn = !_isTorchOn;
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> switchCamera() async {
-    _isFrontCamera = !_isFrontCamera;
-    if (_mobileScannerController != null) {
-      try {
-        await _mobileScannerController!.switchCamera();
-      } catch (_) {
-        await _setupFreshScannerController();
-        await _mobileScannerController?.start();
-      }
+    try {
+      await _mobileScannerController.switchCamera();
+      _isFrontCamera = !_isFrontCamera;
       notifyListeners();
-    }
+    } catch (_) {}
   }
 
   Future<TicketEntity?> onBarcodeDetected(
@@ -342,7 +319,7 @@ class ScannerController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _mobileScannerController?.dispose();
+    _mobileScannerController.dispose();
     super.dispose();
   }
 }
