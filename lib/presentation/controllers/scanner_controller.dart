@@ -82,13 +82,6 @@ class ScannerController extends ChangeNotifier {
 
   void setScanningActive(bool active) {
     _isScanningActive = active;
-    if (!active) {
-      try {
-        _mobileScannerController.stop();
-      } catch (_) {}
-    } else if (!_isHomeScreen) {
-      resumeScanning();
-    }
     notifyListeners();
   }
 

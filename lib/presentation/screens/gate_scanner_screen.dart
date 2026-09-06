@@ -26,11 +26,6 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final scannerController = Provider.of<ScannerController>(context, listen: false);
-      scannerController.openHome();
-    });
   }
 
   @override
