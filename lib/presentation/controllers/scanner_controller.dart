@@ -97,9 +97,6 @@ class ScannerController extends ChangeNotifier {
     _isScanningActive = false;
     _errorMessage = null;
     _statusMessage = 'Ready to scan tickets';
-    try {
-      _mobileScannerController.stop();
-    } catch (_) {}
     notifyListeners();
   }
 
@@ -110,11 +107,6 @@ class ScannerController extends ChangeNotifier {
     _statusMessage = 'Point camera at ticket QR code to scan.';
     if (requestPermission) {
       await checkAndRequestCameraPermission();
-    }
-    if (_hasCameraPermission) {
-      try {
-        await _mobileScannerController.start();
-      } catch (_) {}
     }
     notifyListeners();
   }
@@ -127,11 +119,6 @@ class ScannerController extends ChangeNotifier {
     _isHomeScreen = false;
     _isScanningActive = true;
     _statusMessage = 'Point camera at ticket QR code to scan.';
-    if (_hasCameraPermission) {
-      try {
-        await _mobileScannerController.start();
-      } catch (_) {}
-    }
     notifyListeners();
   }
 
@@ -145,9 +132,6 @@ class ScannerController extends ChangeNotifier {
       _isScanningActive = true;
       _lastScannedCode = null;
       _lastScanTime = null;
-      try {
-        await _mobileScannerController.start();
-      } catch (_) {}
       notifyListeners();
     }
   }
