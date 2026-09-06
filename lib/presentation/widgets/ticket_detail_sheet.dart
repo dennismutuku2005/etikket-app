@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/date_formatter.dart';
 import '../../domain/entities/ticket_entity.dart';
 import 'app_button.dart';
 import 'ticket_status_badge.dart';
@@ -236,7 +237,7 @@ class TicketDetailSheet extends StatelessWidget {
                       Text('SCANNED AT', style: AppTextStyles.captionBold),
                       const SizedBox(height: 2),
                       Text(
-                        ticket.scannedAt!,
+                        AppDateFormatter.formatScannedAt(ticket.scannedAt!),
                         style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ],

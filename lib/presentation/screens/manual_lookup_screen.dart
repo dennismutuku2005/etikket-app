@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/date_formatter.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/scanner_controller.dart';
 import '../widgets/app_button.dart';
@@ -198,9 +199,12 @@ class _ManualLookupScreenState extends State<ManualLookupScreen> {
                       const SizedBox(height: 8),
                       _buildDetailRow('Ticket Code', selectedTicket.code, isMonospace: true),
 
-                      if (selectedTicket.scannedAt != null) ...[
+                      if (selectedTicket.scannedAt != null && selectedTicket.scannedAt!.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        _buildDetailRow('Scanned At', selectedTicket.scannedAt!),
+                        _buildDetailRow(
+                          selectedTicket.isCheckedIn ? 'First Scanned' : 'Scanned At',
+                          AppDateFormatter.formatScannedAt(selectedTicket.scannedAt!),
+                        ),
                       ],
 
                       const SizedBox(height: 20),
@@ -235,20 +239,23 @@ class _ManualLookupScreenState extends State<ManualLookupScreen> {
                         )
                       else
                         Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppColors.successLight,
-                            borderRadius: BorderRadius.circular(999),
+                            color: AppColors.errorLight,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.check_circle_rounded, color: AppColors.successText, size: 18),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Ticket Verified & Checked In',
-                                style: AppTextStyles.button.copyWith(
-                                  color: AppColors.successText,
+                              const Icon(Icons.block_rounded, color: AppColors.error, size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'TICKET ALREADY USED · Do not allow duplicate entry',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.errorText,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ],

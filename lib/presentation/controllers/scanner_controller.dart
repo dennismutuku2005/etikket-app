@@ -34,15 +34,21 @@ class ScannerController extends ChangeNotifier {
   ScannerController({
     required this.lookupTicketUseCase,
     required this.verifyTicketUseCase,
-  }) {
-    _initScannerController();
-  }
+  });
 
-  void _initScannerController() {
+  Future<void> _setupFreshScannerController() async {
+    try {
+      if (_mobileScannerController != null) {
+        await _mobileScannerController!.stop();
+        await _mobileScannerController!.dispose();
+        _mobileScannerController = null;
+      }
+    } catch (_) {}
+
     _mobileScannerController = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.back,
-      torchEnabled: false,
+      facing: _isFrontCamera ? CameraFacing.front : CameraFacing.back,
+      torchEnabled: _isTorchOn,
       returnImage: false,
     );
   }
@@ -89,7 +95,7 @@ class ScannerController extends ChangeNotifier {
     if (!active) {
       _mobileScannerController?.stop();
     } else if (!_isHomeScreen) {
-      _mobileScannerController?.start();
+      resumeScanning();
     }
     notifyListeners();
   }
@@ -101,6 +107,8 @@ class ScannerController extends ChangeNotifier {
     _statusMessage = 'Ready to scan tickets';
     try {
       _mobileScannerController?.stop();
+      _mobileScannerController?.dispose();
+      _mobileScannerController = null;
     } catch (_) {}
     notifyListeners();
   }
@@ -108,13 +116,34 @@ class ScannerController extends ChangeNotifier {
   Future<void> startScanning({bool requestPermission = true}) async {
     _isHomeScreen = false;
     _isScanningActive = true;
+    _errorMessage = null;
     _statusMessage = 'Point camera at ticket QR code to scan.';
     if (requestPermission) {
       await checkAndRequestCameraPermission();
     }
-    try {
-      await _mobileScannerController?.start();
-    } catch (_) {}
+    if (_hasCameraPermission) {
+      await _setupFreshScannerController();
+      try {
+        await _mobileScannerController?.start();
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  Future<void> prepareForNextScan() async {
+    _selectedTicket = null;
+    _errorMessage = null;
+    _lastScannedCode = null;
+    _lastScanTime = null;
+    _isHomeScreen = false;
+    _isScanningActive = true;
+    _statusMessage = 'Point camera at ticket QR code to scan.';
+    if (_hasCameraPermission) {
+      await _setupFreshScannerController();
+      try {
+        await _mobileScannerController?.start();
+      } catch (_) {}
+    }
     notifyListeners();
   }
 
@@ -129,6 +158,9 @@ class ScannerController extends ChangeNotifier {
   Future<void> resumeScanning() async {
     if (!_isHomeScreen) {
       _isScanningActive = true;
+      if (_mobileScannerController == null) {
+        await _setupFreshScannerController();
+      }
       try {
         await _mobileScannerController?.start();
       } catch (_) {}
@@ -147,12 +179,15 @@ class ScannerController extends ChangeNotifier {
   }
 
   Future<void> switchCamera() async {
+    _isFrontCamera = !_isFrontCamera;
     if (_mobileScannerController != null) {
       try {
         await _mobileScannerController!.switchCamera();
-        _isFrontCamera = !_isFrontCamera;
-        notifyListeners();
-      } catch (_) {}
+      } catch (_) {
+        await _setupFreshScannerController();
+        await _mobileScannerController?.start();
+      }
+      notifyListeners();
     }
   }
 

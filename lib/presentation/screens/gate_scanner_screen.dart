@@ -87,6 +87,7 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
         children: [
           if (scannerController.hasCameraPermission && scannerController.mobileScannerController != null)
             MobileScanner(
+              key: ObjectKey(scannerController.mobileScannerController),
               controller: scannerController.mobileScannerController!,
               onDetect: (capture) async {
                 final ticket = await scannerController.onBarcodeDetected(

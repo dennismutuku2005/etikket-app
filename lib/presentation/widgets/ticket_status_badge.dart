@@ -21,20 +21,20 @@ class TicketStatusBadge extends StatelessWidget {
     IconData icon;
 
     if (lower == 'checked_in' || lower == 'verified' || lower == 'used') {
-      bg = AppColors.successLight;
-      fg = AppColors.successText;
-      label = 'Checked-in / Verified';
-      icon = Icons.check_circle_rounded;
-    } else if (lower == 'unused' || lower == 'pending' || lower == 'valid') {
-      bg = AppColors.warningLight;
-      fg = AppColors.warningText;
-      label = 'Valid / Ready to Scan';
-      icon = Icons.access_time_rounded;
-    } else {
       bg = AppColors.errorLight;
       fg = AppColors.errorText;
-      label = status;
-      icon = Icons.error_outline_rounded;
+      label = 'USED / CHECKED IN';
+      icon = Icons.cancel_outlined;
+    } else if (lower == 'unused' || lower == 'pending' || lower == 'valid') {
+      bg = AppColors.successLight;
+      fg = AppColors.successText;
+      label = 'VALID / READY TO SCAN';
+      icon = Icons.verified_rounded;
+    } else {
+      bg = AppColors.warningLight;
+      fg = AppColors.warningText;
+      label = status.toUpperCase();
+      icon = Icons.info_outline_rounded;
     }
 
     return Container(

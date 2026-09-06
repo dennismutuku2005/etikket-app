@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/date_formatter.dart';
+import '../../core/utils/feedback_util.dart';
 import '../../domain/entities/ticket_entity.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/scanner_controller.dart';
@@ -24,10 +26,12 @@ class TicketResultScreen extends StatefulWidget {
 
 class _TicketResultScreenState extends State<TicketResultScreen> {
   bool _isAutoVerifying = false;
+  bool _wasAlreadyUsed = false;
 
   @override
   void initState() {
     super.initState();
+    _wasAlreadyUsed = widget.ticket?.isCheckedIn ?? false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAutoVerify();
     });
@@ -35,7 +39,15 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
 
   Future<void> _checkAutoVerify() async {
     final ticket = widget.ticket;
-    if (ticket == null || ticket.isCheckedIn) return;
+    if (ticket == null) return;
+
+    if (ticket.isCheckedIn) {
+      // Ticket was already used before this scan
+      _wasAlreadyUsed = true;
+      await FeedbackUtil.errorAlert();
+      if (mounted) setState(() {});
+      return;
+    }
 
     setState(() {
       _isAutoVerifying = true;
@@ -48,7 +60,7 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
     final staffName = authController.currentUser?.name ?? 'Gate Staff';
     final token = authController.currentUser?.token;
 
-    await scannerController.verifyCurrentTicket(
+    final success = await scannerController.verifyCurrentTicket(
       staffId: staffId,
       staffName: staffName,
       token: token,
@@ -57,6 +69,9 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
     if (mounted) {
       setState(() {
         _isAutoVerifying = false;
+        if (!success && (scannerController.errorMessage?.contains('ALREADY') ?? false)) {
+          _wasAlreadyUsed = true;
+        }
       });
     }
   }
@@ -71,52 +86,60 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
     final errorMsg = scannerController.errorMessage ?? widget.errorMessage;
 
     final isSuccess = activeTicket != null;
-    final isAlreadyCheckedIn = activeTicket != null && activeTicket.isCheckedIn;
+    final isDuplicateUsed = _wasAlreadyUsed || (activeTicket != null && activeTicket.isCheckedIn && !_isAutoVerifying && (widget.ticket?.isCheckedIn ?? false));
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
-          isSuccess ? 'Ticket Details' : 'Scan Result',
-          style: AppTextStyles.h2,
+          !isSuccess
+              ? 'Scan Result'
+              : (isDuplicateUsed ? '⚠️ Duplicate Scan' : '✓ Ticket Details'),
+          style: AppTextStyles.h2.copyWith(
+            color: isDuplicateUsed ? AppColors.errorText : AppColors.textPrimary,
+          ),
         ),
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () {
-            scannerController.resetSelectedTicket();
-            Navigator.of(context).pop();
+          onPressed: () async {
+            await scannerController.prepareForNextScan();
+            if (context.mounted) Navigator.of(context).pop();
           },
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (!isSuccess && errorMsg != null) ...[
-                _buildErrorCard(errorMsg, scannerController),
+                _buildErrorCard(errorMsg),
               ] else if (activeTicket != null) ...[
-                _buildStatusHeader(isAlreadyCheckedIn, _isAutoVerifying),
+                _buildStatusHeader(
+                  isDuplicateUsed: isDuplicateUsed,
+                  isAutoVerifying: _isAutoVerifying,
+                  scannedAt: activeTicket.scannedAt,
+                ),
                 const SizedBox(height: 20),
-                _buildTicketCard(activeTicket),
-                const SizedBox(height: 20),
-                _buildStaffVerificationInfo(authController, activeTicket),
+                _buildTicketCard(activeTicket, isDuplicateUsed: isDuplicateUsed),
+                const SizedBox(height: 16),
+                _buildStaffVerificationInfo(authController, activeTicket, isDuplicateUsed: isDuplicateUsed),
               ],
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               AppButton(
                 text: 'Scan Next Ticket',
                 icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: Colors.white),
-                onPressed: () {
-                  scannerController.resetSelectedTicket();
-                  Navigator.of(context).pop();
+                onPressed: () async {
+                  await scannerController.prepareForNextScan();
+                  if (context.mounted) Navigator.of(context).pop();
                 },
               ),
               const SizedBox(height: 12),
               AppButton(
-                text: 'Back to Main Dashboard',
+                text: 'Back to Gate Dashboard',
                 variant: AppButtonVariant.outline,
                 onPressed: () {
                   scannerController.openHome();
@@ -130,7 +153,11 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
     );
   }
 
-  Widget _buildStatusHeader(bool isCheckedIn, bool isAutoVerifying) {
+  Widget _buildStatusHeader({
+    required bool isDuplicateUsed,
+    required bool isAutoVerifying,
+    String? scannedAt,
+  }) {
     if (isAutoVerifying) {
       return Container(
         padding: const EdgeInsets.all(20),
@@ -142,10 +169,10 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
         child: Row(
           children: [
             const SizedBox(
-              width: 24,
-              height: 24,
+              width: 28,
+              height: 28,
               child: CircularProgressIndicator(
-                strokeWidth: 2.5,
+                strokeWidth: 3,
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
             ),
@@ -155,12 +182,12 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Marking Ticket as Used...',
+                    'Verifying Ticket...',
                     style: AppTextStyles.h3.copyWith(color: AppColors.primary),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
-                    'Validating guest pass at gate entrance...',
+                    'Checking gate validity & marking as used...',
                     style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                   ),
                 ],
@@ -171,27 +198,131 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
       );
     }
 
+    if (isDuplicateUsed) {
+      final formattedTime = AppDateFormatter.formatScannedAt(scannedAt);
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.errorLight,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.error, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.error.withValues(alpha: 0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    color: AppColors.error,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.block_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ENTRY DENIED',
+                        style: AppTextStyles.h1.copyWith(
+                          color: AppColors.errorText,
+                          fontSize: 22,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'TICKET ALREADY USED',
+                        style: AppTextStyles.captionBold.copyWith(
+                          color: AppColors.errorText,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '⚠️ This ticket was ALREADY SCANNED and marked as used. Do NOT admit attendee.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.errorText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (scannedAt != null && scannedAt.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'First Scanned: $formattedTime',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Fresh Valid Ticket: Entry Granted
+    final formattedTime = AppDateFormatter.formatScannedAt(scannedAt);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isCheckedIn ? AppColors.successLight : AppColors.errorLight,
+        color: AppColors.successLight,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: (isCheckedIn ? AppColors.success : AppColors.error).withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppColors.success, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.success.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isCheckedIn ? AppColors.success : AppColors.error,
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: AppColors.success,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              isCheckedIn ? Icons.check_rounded : Icons.priority_high_rounded,
+            child: const Icon(
+              Icons.check_rounded,
               color: Colors.white,
-              size: 28,
+              size: 32,
             ),
           ),
           const SizedBox(width: 16),
@@ -200,27 +331,26 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isCheckedIn ? 'VALID & MARKED AS USED' : 'ALREADY CHECKED IN',
+                  'ENTRY GRANTED',
+                  style: AppTextStyles.h1.copyWith(
+                    color: AppColors.successText,
+                    fontSize: 22,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'VALID TICKET · CHECKED IN',
                   style: AppTextStyles.captionBold.copyWith(
-                    color: isCheckedIn ? AppColors.successText : AppColors.errorText,
+                    color: AppColors.successText,
                     fontSize: 12,
-                    letterSpacing: 0.8,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  isCheckedIn ? 'Entry Granted' : 'Duplicate Scan Warning',
-                  style: AppTextStyles.h2.copyWith(
-                    color: isCheckedIn ? AppColors.successText : AppColors.errorText,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isCheckedIn
-                      ? 'Ticket has been successfully scanned & marked as used.'
-                      : 'This ticket was already scanned previously.',
+                  'Marked as used ($formattedTime).',
                   style: AppTextStyles.caption.copyWith(
-                    color: (isCheckedIn ? AppColors.successText : AppColors.errorText).withValues(alpha: 0.8),
+                    color: AppColors.successText.withValues(alpha: 0.9),
                   ),
                 ),
               ],
@@ -231,13 +361,19 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
     );
   }
 
-  Widget _buildTicketCard(TicketEntity ticket) {
+  Widget _buildTicketCard(TicketEntity ticket, {required bool isDuplicateUsed}) {
+    final formattedScannedAt = AppDateFormatter.formatScannedAt(ticket.scannedAt);
+    final formattedEventDateTime = AppDateFormatter.formatEventDateTime(ticket.eventDate, ticket.eventTime);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: isDuplicateUsed ? AppColors.error.withValues(alpha: 0.4) : AppColors.border,
+          width: isDuplicateUsed ? 1.5 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -254,9 +390,14 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
             children: [
               Text(
                 'TICKET DETAILS',
-                style: AppTextStyles.captionBold.copyWith(color: AppColors.primary),
+                style: AppTextStyles.captionBold.copyWith(
+                  color: isDuplicateUsed ? AppColors.error : AppColors.primary,
+                ),
               ),
-              TicketStatusBadge(status: ticket.status),
+              TicketStatusBadge(
+                status: isDuplicateUsed ? 'used' : ticket.status,
+                isLarge: true,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -274,14 +415,24 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
           const SizedBox(height: 12),
           _buildInfoRow('Ticket Code', ticket.code, icon: Icons.qr_code_rounded, isCode: true),
 
+          if (ticket.eventDate != null && ticket.eventDate!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow('Event Date', formattedEventDateTime, icon: Icons.calendar_today_rounded),
+          ],
+
           if (ticket.venue != null && ticket.venue!.isNotEmpty) ...[
             const SizedBox(height: 12),
             _buildInfoRow('Venue', ticket.venue!, icon: Icons.location_on_rounded),
           ],
 
-          if (ticket.scannedAt != null) ...[
+          if (ticket.scannedAt != null && ticket.scannedAt!.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _buildInfoRow('Scanned At', ticket.scannedAt!, icon: Icons.access_time_rounded),
+            _buildInfoRow(
+              isDuplicateUsed ? 'First Scanned' : 'Checked In At',
+              formattedScannedAt,
+              icon: Icons.access_time_rounded,
+              isHighlight: isDuplicateUsed,
+            ),
           ],
         ],
       ),
@@ -301,43 +452,60 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
         const SizedBox(width: 10),
         Text(label, style: AppTextStyles.bodySmall),
         const Spacer(),
-        Text(
-          value,
-          style: isCode
-              ? AppTextStyles.code.copyWith(fontSize: 14)
-              : (isHighlight
-                  ? AppTextStyles.bodyBold.copyWith(color: AppColors.primary)
-                  : AppTextStyles.bodyBold),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: isCode
+                ? AppTextStyles.code.copyWith(fontSize: 14)
+                : (isHighlight
+                    ? AppTextStyles.bodyBold.copyWith(
+                        color: isHighlight ? AppColors.primary : AppColors.textPrimary,
+                      )
+                    : AppTextStyles.bodyBold),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildStaffVerificationInfo(AuthController authController, TicketEntity ticket) {
+  Widget _buildStaffVerificationInfo(AuthController authController, TicketEntity ticket, {required bool isDuplicateUsed}) {
     final staffName = ticket.scannedBy ?? authController.currentUser?.name ?? 'Gate Staff';
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: isDuplicateUsed ? AppColors.errorLight.withValues(alpha: 0.5) : AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: isDuplicateUsed ? AppColors.error.withValues(alpha: 0.3) : AppColors.border,
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.verified_user_rounded, color: AppColors.primary, size: 20),
+          Icon(
+            isDuplicateUsed ? Icons.warning_amber_rounded : Icons.verified_user_rounded,
+            color: isDuplicateUsed ? AppColors.error : AppColors.primary,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Verified By',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                  isDuplicateUsed ? 'Previously Verified By' : 'Verified By',
+                  style: AppTextStyles.caption.copyWith(
+                    color: isDuplicateUsed ? AppColors.errorText : AppColors.textMuted,
+                  ),
                 ),
                 Text(
                   staffName,
-                  style: AppTextStyles.bodyBold.copyWith(fontSize: 13),
+                  style: AppTextStyles.bodyBold.copyWith(
+                    fontSize: 13,
+                    color: isDuplicateUsed ? AppColors.errorText : AppColors.textPrimary,
+                  ),
                 ),
               ],
             ),
@@ -347,20 +515,20 @@ class _TicketResultScreenState extends State<TicketResultScreen> {
     );
   }
 
-  Widget _buildErrorCard(String message, ScannerController controller) {
+  Widget _buildErrorCard(String message) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.errorLight,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.error, width: 1.5),
       ),
       child: Column(
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 52),
           const SizedBox(height: 12),
           Text(
-            'Scan / Lookup Failed',
+            'Lookup Failed',
             style: AppTextStyles.h2.copyWith(color: AppColors.errorText),
           ),
           const SizedBox(height: 8),
