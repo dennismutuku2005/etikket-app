@@ -5,7 +5,6 @@ import '../../core/theme/app_text_styles.dart';
 class QuickStatsBar extends StatelessWidget {
   final String staffName;
   final String? staffEmail;
-  final int scannedCount;
   final VoidCallback onManualLookup;
   final VoidCallback onSettings;
 
@@ -13,7 +12,6 @@ class QuickStatsBar extends StatelessWidget {
     super.key,
     required this.staffName,
     this.staffEmail,
-    required this.scannedCount,
     required this.onManualLookup,
     required this.onSettings,
   });
@@ -85,36 +83,6 @@ class QuickStatsBar extends StatelessWidget {
                   staffEmail ?? 'Gate Staff',
                   style: AppTextStyles.caption.copyWith(fontSize: 11.5),
                   overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-
-          // Scanned counter chip
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'SCANNED',
-                  style: AppTextStyles.captionBold.copyWith(
-                    fontSize: 8.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                Text(
-                  '$scannedCount',
-                  style: AppTextStyles.h3.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    height: 1.1,
-                  ),
                 ),
               ],
             ),

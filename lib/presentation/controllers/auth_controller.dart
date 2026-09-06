@@ -34,7 +34,7 @@ class AuthController extends ChangeNotifier {
 
     try {
       final user = await getSavedSessionUseCase();
-      if (user != null && user.isGateStaff) {
+      if (user != null && (user.token.isNotEmpty || user.isGateStaff)) {
         _currentUser = user;
         _status = AuthStatus.authenticated;
       } else {
@@ -76,8 +76,8 @@ class AuthController extends ChangeNotifier {
       _status = AuthStatus.error;
       notifyListeners();
       return false;
-    } catch (e) {
-      _errorMessage = 'An unexpected error occurred: $e';
+    } catch (_) {
+      _errorMessage = 'Unable to sign in right now. Please check your connection and try again.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;

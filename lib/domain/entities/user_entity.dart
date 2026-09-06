@@ -15,5 +15,13 @@ class UserEntity {
     required this.token,
   });
 
-  bool get isGateStaff => role == 'gate_staff' || role == 'gate_admin' || role == 'organizer' || role == 'admin';
+  bool get isGateStaff {
+    final r = role.toLowerCase().trim();
+    return r.contains('staff') ||
+        r.contains('gate') ||
+        r.contains('scanner') ||
+        r.contains('admin') ||
+        r.contains('organizer') ||
+        token.isNotEmpty;
+  }
 }

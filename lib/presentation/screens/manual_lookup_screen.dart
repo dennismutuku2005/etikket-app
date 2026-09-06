@@ -40,10 +40,16 @@ class _ManualLookupScreenState extends State<ManualLookupScreen> {
     final authController = Provider.of<AuthController>(context, listen: false);
     final scannerController = Provider.of<ScannerController>(context, listen: false);
 
-    await scannerController.lookupCode(
+    final ticket = await scannerController.lookupCode(
       code,
       token: authController.currentUser?.token,
     );
+
+    if (mounted) {
+      if (ticket != null || scannerController.errorMessage != null) {
+        Navigator.of(context).pop(code);
+      }
+    }
   }
 
   @override

@@ -17,7 +17,8 @@ class ScannerController extends ChangeNotifier {
 
   bool _isTorchOn = false;
   bool _isFrontCamera = false;
-  bool _isScanningActive = true;
+  bool _isScanningActive = false;
+  bool _isHomeScreen = true;
   bool _isLookingUp = false;
   bool _isVerifying = false;
   bool _hasCameraPermission = false;
@@ -49,6 +50,7 @@ class ScannerController extends ChangeNotifier {
   bool get isTorchOn => _isTorchOn;
   bool get isFrontCamera => _isFrontCamera;
   bool get isScanningActive => _isScanningActive;
+  bool get isHomeScreen => _isHomeScreen;
   bool get isLookingUp => _isLookingUp;
   bool get isVerifying => _isVerifying;
   bool get hasCameraPermission => _hasCameraPermission;
@@ -59,19 +61,79 @@ class ScannerController extends ChangeNotifier {
   List<TicketEntity> get recentScans => List.unmodifiable(_recentScans);
 
   Future<void> checkAndRequestCameraPermission() async {
-    final status = await Permission.camera.status;
-    if (status.isGranted) {
-      _hasCameraPermission = true;
-    } else {
-      final requested = await Permission.camera.request();
-      _hasCameraPermission = requested.isGranted;
+    try {
+      final status = await Permission.camera.status;
+      if (status.isGranted) {
+        _hasCameraPermission = true;
+      } else {
+        final requested = await Permission.camera.request();
+        _hasCameraPermission = requested.isGranted;
+      }
+      if (!_hasCameraPermission) {
+        _errorMessage = 'Camera access is required to scan tickets. You can still use manual lookup.';
+        _statusMessage = 'Camera permission required';
+      } else {
+        _errorMessage = null;
+        _statusMessage = 'Point camera at ticket QR code to scan.';
+      }
+    } catch (_) {
+      _hasCameraPermission = false;
+      _errorMessage = 'Camera is unavailable on this device. Please use manual lookup instead.';
+      _statusMessage = 'Camera unavailable';
     }
     notifyListeners();
   }
 
   void setScanningActive(bool active) {
     _isScanningActive = active;
+    if (!active) {
+      _mobileScannerController?.stop();
+    } else if (!_isHomeScreen) {
+      _mobileScannerController?.start();
+    }
     notifyListeners();
+  }
+
+  void openHome() {
+    _isHomeScreen = true;
+    _isScanningActive = false;
+    _errorMessage = null;
+    _statusMessage = 'Ready to scan tickets';
+    try {
+      _mobileScannerController?.stop();
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> startScanning({bool requestPermission = true}) async {
+    _isHomeScreen = false;
+    _isScanningActive = true;
+    _statusMessage = 'Point camera at ticket QR code to scan.';
+    if (requestPermission) {
+      await checkAndRequestCameraPermission();
+    }
+    try {
+      await _mobileScannerController?.start();
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> pauseScanning() async {
+    _isScanningActive = false;
+    try {
+      await _mobileScannerController?.stop();
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> resumeScanning() async {
+    if (!_isHomeScreen) {
+      _isScanningActive = true;
+      try {
+        await _mobileScannerController?.start();
+      } catch (_) {}
+      notifyListeners();
+    }
   }
 
   Future<void> toggleTorch() async {
@@ -98,32 +160,39 @@ class ScannerController extends ChangeNotifier {
     BarcodeCapture capture, {
     String? token,
   }) async {
-    if (!_isScanningActive || _isLookingUp || _isVerifying) {
+    try {
+      if (!_isScanningActive || _isLookingUp || _isVerifying) {
+        return null;
+      }
+
+      final barcodes = capture.barcodes;
+      if (barcodes.isEmpty) return null;
+
+      final rawValue = barcodes.first.rawValue;
+      if (rawValue == null || rawValue.trim().isEmpty) return null;
+
+      final cleanCode = QrCodeParser.extractTicketCode(rawValue);
+      if (cleanCode == null || cleanCode.isEmpty) return null;
+
+      final now = DateTime.now();
+      if (_lastScannedCode == cleanCode &&
+          _lastScanTime != null &&
+          now.difference(_lastScanTime!).inMilliseconds < 2500) {
+        return null;
+      }
+
+      _lastScannedCode = cleanCode;
+      _lastScanTime = now;
+
+      await FeedbackUtil.successScan();
+      return await lookupCode(cleanCode, token: token);
+    } catch (_) {
+      _errorMessage = 'The QR scan failed. Please try again or use manual lookup.';
+      _statusMessage = 'Scan failed';
+      _isScanningActive = true;
+      notifyListeners();
       return null;
     }
-
-    final barcodes = capture.barcodes;
-    if (barcodes.isEmpty) return null;
-
-    final rawValue = barcodes.first.rawValue;
-    if (rawValue == null || rawValue.trim().isEmpty) return null;
-
-    final cleanCode = QrCodeParser.extractTicketCode(rawValue);
-    if (cleanCode == null || cleanCode.isEmpty) return null;
-
-    // Debounce duplicate scans within 2 seconds
-    final now = DateTime.now();
-    if (_lastScannedCode == cleanCode &&
-        _lastScanTime != null &&
-        now.difference(_lastScanTime!).inMilliseconds < 2500) {
-      return null;
-    }
-
-    _lastScannedCode = cleanCode;
-    _lastScanTime = now;
-
-    await FeedbackUtil.successScan();
-    return await lookupCode(cleanCode, token: token);
   }
 
   Future<TicketEntity?> lookupCode(String rawCode, {String? token}) async {
@@ -167,11 +236,12 @@ class ScannerController extends ChangeNotifier {
       await FeedbackUtil.errorAlert();
       notifyListeners();
       return null;
-    } catch (e) {
+    } catch (_) {
       _selectedTicket = null;
       _isLookingUp = false;
-      _errorMessage = 'Ticket lookup failed: $e';
+      _errorMessage = 'Ticket lookup failed. Please try again or enter the code manually.';
       _statusMessage = 'Ticket lookup failed.';
+      _isScanningActive = true;
       await FeedbackUtil.errorAlert();
       notifyListeners();
       return null;
@@ -216,9 +286,10 @@ class ScannerController extends ChangeNotifier {
       await FeedbackUtil.errorAlert();
       notifyListeners();
       return false;
-    } catch (e) {
+    } catch (_) {
       _isVerifying = false;
-      _errorMessage = 'Verification failed: $e';
+      _errorMessage = 'Verification failed. Please try again.';
+      _isScanningActive = true;
       await FeedbackUtil.errorAlert();
       notifyListeners();
       return false;
@@ -228,8 +299,9 @@ class ScannerController extends ChangeNotifier {
   void resetSelectedTicket() {
     _selectedTicket = null;
     _errorMessage = null;
-    _statusMessage = 'Point camera at ticket QR code to scan.';
-    _isScanningActive = true;
+    _statusMessage = 'Ready to scan tickets';
+    _isScanningActive = false;
+    _isHomeScreen = true;
     notifyListeners();
   }
 

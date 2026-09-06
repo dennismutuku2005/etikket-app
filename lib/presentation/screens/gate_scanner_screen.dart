@@ -3,14 +3,16 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../domain/entities/ticket_entity.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/scanner_controller.dart';
 import '../widgets/app_button.dart';
 import '../widgets/quick_stats_bar.dart';
 import '../widgets/scanner_overlay.dart';
-import '../widgets/ticket_detail_sheet.dart';
+import 'login_screen.dart';
 import 'manual_lookup_screen.dart';
 import 'settings_screen.dart';
+import 'ticket_result_screen.dart';
 
 class GateScannerScreen extends StatefulWidget {
   const GateScannerScreen({super.key});
@@ -27,8 +29,7 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final scannerController = Provider.of<ScannerController>(context, listen: false);
-      scannerController.checkAndRequestCameraPermission();
-      scannerController.setScanningActive(true);
+      scannerController.openHome();
     });
   }
 
@@ -43,68 +44,32 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
     if (!mounted) return;
     final scannerController = Provider.of<ScannerController>(context, listen: false);
     if (state == AppLifecycleState.resumed) {
-      scannerController.setScanningActive(true);
+      if (!scannerController.isHomeScreen) {
+        scannerController.setScanningActive(true);
+      }
     } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       scannerController.setScanningActive(false);
     }
   }
 
-  void _showTicketSheet() {
+  Future<void> _navigateToResultPage(TicketEntity? ticket, {String? errorMessage}) async {
     if (!mounted) return;
     final scannerController = Provider.of<ScannerController>(context, listen: false);
-    final authController = Provider.of<AuthController>(context, listen: false);
-    final ticket = scannerController.selectedTicket;
+    await scannerController.pauseScanning();
 
-    if (ticket == null) return;
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TicketResultScreen(
+          ticket: ticket,
+          errorMessage: errorMessage,
+        ),
+      ),
+    );
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalContext) {
-        return Consumer<ScannerController>(
-          builder: (sheetContext, controller, child) {
-            final activeTicket = controller.selectedTicket ?? ticket;
-            return TicketDetailSheet(
-              ticket: activeTicket,
-              staffName: authController.currentUser?.name ?? 'Gate Staff',
-              isVerifying: controller.isVerifying,
-              onVerify: () async {
-                final staffId = authController.currentUser?.id ?? 1;
-                final staffName = authController.currentUser?.name ?? 'Gate Staff';
-                final token = authController.currentUser?.token;
-
-                final success = await controller.verifyCurrentTicket(
-                  staffId: staffId,
-                  staffName: staffName,
-                  token: token,
-                );
-
-                if (!modalContext.mounted) return;
-
-                if (success) {
-                  ScaffoldMessenger.of(modalContext).showSnackBar(
-                    SnackBar(
-                      content: Text('✓ Checked in ${activeTicket.attendeeName} successfully!'),
-                      backgroundColor: AppColors.success,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
-              onClose: () {
-                Navigator.of(modalContext).pop();
-                controller.resetSelectedTicket();
-              },
-            );
-          },
-        );
-      },
-    ).then((_) {
-      if (mounted) {
-        scannerController.resetSelectedTicket();
-      }
-    });
+    if (mounted && !scannerController.isHomeScreen) {
+      await scannerController.resumeScanning();
+    }
   }
 
   @override
@@ -112,11 +77,14 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
     final authController = context.watch<AuthController>();
     final scannerController = context.watch<ScannerController>();
 
+    if (scannerController.isHomeScreen && !scannerController.isLookingUp && !scannerController.isVerifying) {
+      return _buildHomeScreen(authController, scannerController);
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera Preview or Permission Request View
           if (scannerController.hasCameraPermission && scannerController.mobileScannerController != null)
             MobileScanner(
               controller: scannerController.mobileScannerController!,
@@ -125,32 +93,30 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
                   capture,
                   token: authController.currentUser?.token,
                 );
-                if (ticket != null && mounted) {
-                  _showTicketSheet();
+                if ((ticket != null || scannerController.errorMessage != null) && mounted) {
+                  await _navigateToResultPage(ticket, errorMessage: scannerController.errorMessage);
                 }
               },
             )
           else
             _buildNoCameraPermissionView(scannerController),
 
-          // Scan Overlay if permission granted
           if (scannerController.hasCameraPermission)
             ScannerOverlay(
               isTorchOn: scannerController.isTorchOn,
               isFrontCamera: scannerController.isFrontCamera,
               onToggleTorch: () => scannerController.toggleTorch(),
               onSwitchCamera: () => scannerController.switchCamera(),
+              onClose: () => scannerController.openHome(),
             ),
 
-          // Top Header Bar
           Positioned(
             top: MediaQuery.of(context).padding.top + 12,
-            left: 16,
-            right: 80, // Leaves space for top-right torch icons
+            left: 70,
+            right: 16,
             child: QuickStatsBar(
               staffName: authController.currentUser?.name ?? 'Gate Staff',
               staffEmail: authController.currentUser?.email,
-              scannedCount: scannerController.scannedCount,
               onManualLookup: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const ManualLookupScreen()),
@@ -164,7 +130,6 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
             ),
           ),
 
-          // Lookup in progress indicator
           if (scannerController.isLookingUp)
             Center(
               child: Container(
@@ -190,7 +155,6 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
               ),
             ),
 
-          // Bottom Action Bar
           Positioned(
             left: 16,
             right: 16,
@@ -214,7 +178,10 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
                 icon: const Icon(Icons.keyboard_rounded, size: 18, color: Colors.white),
                 height: 48,
                 onPressed: () async {
-                  final code = await Navigator.of(context).push<String>(
+                  final nav = Navigator.of(context);
+                  await scannerController.pauseScanning();
+                  if (!mounted) return;
+                  final code = await nav.push<String>(
                     MaterialPageRoute(builder: (_) => const ManualLookupScreen()),
                   );
                   if (!mounted) return;
@@ -223,15 +190,147 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
                       code,
                       token: authController.currentUser?.token,
                     );
-                    if (ticket != null && mounted) {
-                      _showTicketSheet();
+                    if (mounted) {
+                      await _navigateToResultPage(ticket, errorMessage: scannerController.errorMessage);
                     }
+                  } else if (!scannerController.isHomeScreen) {
+                    await scannerController.resumeScanning();
                   }
                 },
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHomeScreen(AuthController authController, ScannerController scannerController) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Gate Dashboard',
+                          style: AppTextStyles.h1,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          authController.currentUser?.name ?? 'Gate Staff',
+                          style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    ),
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: _HomeStatCard(
+                      label: 'Scanned',
+                      value: '${scannerController.scannedCount}',
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _HomeStatCard(
+                      label: 'Status',
+                      value: 'Ready',
+                      color: AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Scan tickets',
+                      style: AppTextStyles.h3,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Open the scanner when you are ready to validate a guest entry.',
+                      style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 18),
+                    AppButton(
+                      text: 'Open Scanner',
+                      onPressed: () async {
+                        await scannerController.startScanning();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    AppButton(
+                      text: 'Manual Code Lookup',
+                      variant: AppButtonVariant.outline,
+                      onPressed: () async {
+                        final nav = Navigator.of(context);
+                        final code = await nav.push<String>(
+                          MaterialPageRoute(builder: (_) => const ManualLookupScreen()),
+                        );
+                        if (!mounted) return;
+                        if (code != null && code.isNotEmpty) {
+                          final ticket = await scannerController.lookupCode(
+                            code,
+                            token: authController.currentUser?.token,
+                          );
+                          if (mounted) {
+                            await _navigateToResultPage(ticket, errorMessage: scannerController.errorMessage);
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: AppButton(
+                  text: 'Log out',
+                  variant: AppButtonVariant.outline,
+                  onPressed: () async {
+                    await authController.logout();
+                    if (!mounted) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -285,6 +384,44 @@ class _GateScannerScreenState extends State<GateScannerScreen> with WidgetsBindi
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HomeStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _HomeStatCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: AppTextStyles.h2.copyWith(color: color),
+          ),
+        ],
       ),
     );
   }

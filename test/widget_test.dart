@@ -31,7 +31,7 @@ void main() {
   });
 
   group('Data Model Tests', () {
-    test('UserModel parses from JSON correctly', () {
+    test('UserModel parses gate staff JSON correctly', () {
       final json = {
         'user': {
           'id': 5,
@@ -50,6 +50,30 @@ void main() {
       expect(user.role, 'gate_staff');
       expect(user.token, 'jwt_test_token_123');
       expect(user.isGateStaff, isTrue);
+    });
+
+    test('Gate staff checks reject organizer/admin sessions for the scanner app', () {
+      final gateStaff = UserModel.fromJson({
+        'user': {'id': 7, 'name': 'Jane Staff', 'email': 'jane@event.com', 'role': 'gate_staff'},
+        'token': 'staff-token',
+      });
+      final ticketScanner = UserModel.fromJson({
+        'user': {'id': 8, 'name': 'Sam Scanner', 'email': 'sam@event.com', 'role': 'ticket_scanner'},
+        'token': 'scanner-token',
+      });
+      final organizer = UserModel.fromJson({
+        'user': {'id': 9, 'name': 'Organiser', 'email': 'org@event.com', 'role': 'organizer'},
+        'token': 'org-token',
+      });
+      final admin = UserModel.fromJson({
+        'user': {'id': 10, 'name': 'Admin', 'email': 'admin@event.com', 'role': 'admin'},
+        'token': 'admin-token',
+      });
+
+      expect(gateStaff.isGateStaff, isTrue);
+      expect(ticketScanner.isGateStaff, isTrue);
+      expect(organizer.isGateStaff, isFalse);
+      expect(admin.isGateStaff, isFalse);
     });
 
     test('TicketModel parses from JSON correctly', () {

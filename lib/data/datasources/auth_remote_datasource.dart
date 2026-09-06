@@ -30,11 +30,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
     if (response is Map<String, dynamic>) {
       final userModel = UserModel.fromJson(response);
-      if (!userModel.isGateStaff) {
-        throw AuthException(
-          message: 'Access denied. Only gate staff, gate admins, or event organizers can sign in here.',
-        );
-      }
       return userModel;
     }
 

@@ -5,6 +5,7 @@ import '../../core/theme/app_text_styles.dart';
 class ScannerOverlay extends StatefulWidget {
   final VoidCallback onToggleTorch;
   final VoidCallback onSwitchCamera;
+  final VoidCallback? onClose;
   final bool isTorchOn;
   final bool isFrontCamera;
 
@@ -12,6 +13,7 @@ class ScannerOverlay extends StatefulWidget {
     super.key,
     required this.onToggleTorch,
     required this.onSwitchCamera,
+    this.onClose,
     this.isTorchOn = false,
     this.isFrontCamera = false,
   });
@@ -162,6 +164,19 @@ class _ScannerOverlayState extends State<ScannerOverlay>
             ),
           ),
         ),
+
+        // Top Left: Back Button
+        if (widget.onClose != null)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            left: 16,
+            child: _OverlayIconButton(
+              icon: Icons.arrow_back_ios_new_rounded,
+              isActive: false,
+              onTap: widget.onClose!,
+              tooltip: 'Back to Dashboard',
+            ),
+          ),
 
         // Top Controls: Torch & Camera Switch
         Positioned(
